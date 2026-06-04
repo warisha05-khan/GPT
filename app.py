@@ -1,4 +1,34 @@
-import streamlit as st
+import sqlite3
+
+def init_db():
+    conn = sqlite3.connect("hospital.db")
+    c = conn.cursor()
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS patients(
+        patient_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        age INTEGER,
+        gender TEXT,
+        phone TEXT,
+        address TEXT,
+        blood_group TEXT
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS consultations(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        patient_id INTEGER,
+        symptoms TEXT,
+        diagnosis TEXT,
+        medicines TEXT,
+        notes TEXT
+    )
+    """)
+
+    conn.commit()
+    conn.close()import streamlit as st
 import sqlite3
 import pandas as pd
 import os
@@ -141,3 +171,5 @@ elif menu == "Patient Portal":
 
         st.write("### Medical History")
         st.dataframe(history)
+
+init_db()   # 🔥 THIS LINE CREATES DB AUTOMATICALLY
