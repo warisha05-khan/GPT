@@ -28,7 +28,8 @@ def init_db():
     """)
 
     conn.commit()
-    conn.close()import streamlit as st
+    conn.close()
+import streamlit as st
 import sqlite3
 import pandas as pd
 import os
