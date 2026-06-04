@@ -1,407 +1,143 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from datetime import datetime
+import os
 
-# --------------------------
-# DATABASE
-# --------------------------
-conn = sqlite3.connect("hospital.db", check_same_thread=False)
-c = conn.cursor()
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="Hospital Management System")
 
-c.execute("""
-CREATE TABLE IF NOT EXISTS patients(
-    patient_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    age INTEGER,
-    gender TEXT,
-    phone TEXT,
-    address TEXT,
-    disease TEXT,
-    registration_date TEXT
-)
-""")
+if not os.path.exists("uploads"):
+    os.makedirs("uploads")
 
-c.execute("""
-CREATE TABLE IF NOT EXISTS appointments(
-    appointment_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    patient_name TEXT,
-    doctor_name TEXT,
-    appointment_date TEXT,
-    appointment_time TEXT,
-    status TEXT
-)
-""")
+# ---------------- DATABASE ----------------
+def get_connection():
+    return sqlite3.connect("hospital.db", check_same_thread=False)
 
-c.execute("""
-CREATE TABLE IF NOT EXISTS history(
-    history_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    patient_name TEXT,
-    visit_date TEXT,
-    diagnosis TEXT,
-    treatment TEXT,
-    notes TEXT
-)
-""")
+# ---------------- LOGIN ----------------
+st.title("🏥 Hospital Management System")
 
-conn.commit()
-
-# --------------------------
-# PAGE CONFIG
-# --------------------------
-st.set_page_config(
-    page_title="ICT Health Management System",
-    page_icon="🏥",
-    layout="wide"
-)
-
-# --------------------------
-# CUSTOM CSS
-# --------------------------
-st.markdown("""
-<style>
-.main {
-    background-color: #f8fbff;
-}
-
-.title {
-    text-align:center;
-    color:#0f62fe;
-    font-size:40px;
-    font-weight:bold;
-}
-
-.subtitle {
-    text-align:center;
-    color:gray;
-    font-size:18px;
-}
-
-.roll {
-    background:#0f62fe;
-    color:white;
-    padding:10px;
-    border-radius:10px;
-    text-align:center;
-    font-weight:bold;
-}
-
-.card {
-    background:white;
-    padding:20px;
-    border-radius:15px;
-    box-shadow:0px 0px 10px rgba(0,0,0,0.1);
-}
-</style>
-""", unsafe_allow_html=True)
-
-# --------------------------
-# HEADER
-# --------------------------
-st.markdown("<div class='title'>🏥 ICT in Health Management System</div>", unsafe_allow_html=True)
-
-st.markdown("""
-<div class='subtitle'>
-Smart Hospital Management using ICT
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<div class='roll'>
-Group Members Roll Numbers:
-14 | 42 | 43 | 46 | 118
-</div>
-""", unsafe_allow_html=True)
-
-st.write("")
-
-# --------------------------
-# SIDEBAR
-# --------------------------
-menu = st.sidebar.radio(
-    "Navigation",
+menu = st.sidebar.selectbox(
+    "Menu",
     [
-        "Dashboard",
-        "Patient Registration",
-        "Doctor Appointment",
-        "Patient History",
-        "View Records",
-        "ICT in Health Ideas"
+        "Admin Login",
+        "Register Patient",
+        "View Patients",
+        "Doctor Consultation",
+        "Upload Reports",
+        "Patient Portal"
     ]
 )
 
-# --------------------------
-# DASHBOARD
-# --------------------------
-if menu == "Dashboard":
+# ---------------- ADMIN LOGIN ----------------
+if menu == "Admin Login":
+    st.subheader("Admin Login")
 
-    st.header("Hospital Dashboard")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
 
-    col1, col2, col3 = st.columns(3)
+    if st.button("Login"):
+        if username == "admin" and password == "admin123":
+            st.success("Login successful")
+        else:
+            st.error("Invalid credentials")
 
-    patient_count = c.execute(
-        "SELECT COUNT(*) FROM patients"
-    ).fetchone()[0]
+# ---------------- REGISTER PATIENT ----------------
+elif menu == "Register Patient":
+    st.subheader("Register Patient")
 
-    appointment_count = c.execute(
-        "SELECT COUNT(*) FROM appointments"
-    ).fetchone()[0]
+    name = st.text_input("Name")
+    age = st.number_input("Age", 1, 120)
+    gender = st.selectbox("Gender", ["Male", "Female"])
+    phone = st.text_input("Phone")
+    address = st.text_area("Address")
+    blood = st.text_input("Blood Group")
 
-    history_count = c.execute(
-        "SELECT COUNT(*) FROM history"
-    ).fetchone()[0]
+    if st.button("Save Patient"):
+        conn = get_connection()
+        c = conn.cursor()
 
-    col1.metric("Registered Patients", patient_count)
-    col2.metric("Appointments", appointment_count)
-    col3.metric("Medical Histories", history_count)
+        c.execute("""
+        INSERT INTO patients(name, age, gender, phone, address, blood_group)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """, (name, age, gender, phone, address, blood))
 
-    st.image(
-        "https://images.unsplash.com/photo-1576091160550-2173dba999ef",
-        use_container_width=True
-    )
+        conn.commit()
+        conn.close()
 
-# --------------------------
-# PATIENT REGISTRATION
-# --------------------------
-elif menu == "Patient Registration":
+        st.success("Patient registered successfully!")
 
-    st.header("🧑 Patient Registration")
+# ---------------- VIEW PATIENTS ----------------
+elif menu == "View Patients":
+    st.subheader("All Patients")
 
-    with st.form("register_form"):
+    conn = get_connection()
+    df = pd.read_sql_query("SELECT * FROM patients", conn)
+    conn.close()
 
-        name = st.text_input("Patient Name")
-        age = st.number_input("Age", 1, 120)
-        gender = st.selectbox(
-            "Gender",
-            ["Male", "Female", "Other"]
-        )
-        phone = st.text_input("Phone Number")
-        address = st.text_area("Address")
-        disease = st.text_input("Disease / Problem")
+    st.dataframe(df)
 
-        submit = st.form_submit_button("Register Patient")
+# ---------------- DOCTOR CONSULTATION ----------------
+elif menu == "Doctor Consultation":
+    st.subheader("Doctor Consultation")
 
-        if submit:
+    patient_id = st.number_input("Patient ID", min_value=1)
+    symptoms = st.text_area("Symptoms")
+    diagnosis = st.text_input("Diagnosis")
+    medicines = st.text_area("Medicines")
+    notes = st.text_area("Doctor Notes")
 
-            c.execute("""
-            INSERT INTO patients
-            (name, age, gender, phone, address, disease, registration_date)
-            VALUES (?,?,?,?,?,?,?)
-            """,
-            (
-                name,
-                age,
-                gender,
-                phone,
-                address,
-                disease,
-                str(datetime.now())
-            ))
+    if st.button("Save Consultation"):
+        conn = get_connection()
+        c = conn.cursor()
 
-            conn.commit()
+        c.execute("""
+        INSERT INTO consultations(patient_id, symptoms, diagnosis, medicines, notes)
+        VALUES (?, ?, ?, ?, ?)
+        """, (patient_id, symptoms, diagnosis, medicines, notes))
 
-            st.success("Patient Registered Successfully")
+        conn.commit()
+        conn.close()
 
-# --------------------------
-# APPOINTMENT
-# --------------------------
-elif menu == "Doctor Appointment":
+        st.success("Consultation saved!")
 
-    st.header("📅 Online Doctor Appointment")
+# ---------------- UPLOAD REPORTS ----------------
+elif menu == "Upload Reports":
+    st.subheader("Upload Patient Reports")
 
-    with st.form("appointment_form"):
+    patient_id = st.number_input("Patient ID", min_value=1)
+    file = st.file_uploader("Upload Report (PDF/Image)", type=["pdf", "png", "jpg"])
 
-        patient_name = st.text_input("Patient Name")
+    if file is not None:
+        path = os.path.join("uploads", file.name)
 
-        doctor_name = st.selectbox(
-            "Select Doctor",
-            [
-                "Dr. Ahmed",
-                "Dr. Ali",
-                "Dr. Fatima",
-                "Dr. Hassan"
-            ]
-        )
+        with open(path, "wb") as f:
+            f.write(file.getbuffer())
 
-        appointment_date = st.date_input(
-            "Appointment Date"
-        )
+        st.success("Report uploaded successfully!")
 
-        appointment_time = st.time_input(
-            "Appointment Time"
-        )
+# ---------------- PATIENT PORTAL ----------------
+elif menu == "Patient Portal":
+    st.subheader("Patient Portal")
 
-        submit = st.form_submit_button(
-            "Book Appointment"
-        )
+    pid = st.number_input("Enter Patient ID", min_value=1)
 
-        if submit:
+    if st.button("Search"):
+        conn = get_connection()
 
-            c.execute("""
-            INSERT INTO appointments
-            (patient_name, doctor_name,
-            appointment_date,
-            appointment_time, status)
-            VALUES (?,?,?,?,?)
-            """,
-            (
-                patient_name,
-                doctor_name,
-                str(appointment_date),
-                str(appointment_time),
-                "Pending"
-            ))
-
-            conn.commit()
-
-            st.success(
-                "Appointment Booked Successfully"
-            )
-
-# --------------------------
-# PATIENT HISTORY
-# --------------------------
-elif menu == "Patient History":
-
-    st.header("📖 Patient Medical History")
-
-    with st.form("history_form"):
-
-        patient_name = st.text_input("Patient Name")
-
-        visit_date = st.date_input(
-            "Visit Date"
-        )
-
-        diagnosis = st.text_area(
-            "Diagnosis"
-        )
-
-        treatment = st.text_area(
-            "Treatment"
-        )
-
-        notes = st.text_area(
-            "Doctor Notes"
-        )
-
-        submit = st.form_submit_button(
-            "Save History"
-        )
-
-        if submit:
-
-            c.execute("""
-            INSERT INTO history
-            (patient_name, visit_date,
-            diagnosis, treatment, notes)
-            VALUES (?,?,?,?,?)
-            """,
-            (
-                patient_name,
-                str(visit_date),
-                diagnosis,
-                treatment,
-                notes
-            ))
-
-            conn.commit()
-
-            st.success(
-                "Patient History Saved"
-            )
-
-# --------------------------
-# VIEW RECORDS
-# --------------------------
-elif menu == "View Records":
-
-    st.header("📊 Hospital Records")
-
-    option = st.selectbox(
-        "Choose Data",
-        [
-            "Patients",
-            "Appointments",
-            "History"
-        ]
-    )
-
-    if option == "Patients":
-
-        df = pd.read_sql_query(
-            "SELECT * FROM patients",
+        patient = pd.read_sql_query(
+            f"SELECT * FROM patients WHERE patient_id={pid}",
             conn
         )
 
-        st.dataframe(
-            df,
-            use_container_width=True
-        )
-
-    elif option == "Appointments":
-
-        df = pd.read_sql_query(
-            "SELECT * FROM appointments",
+        history = pd.read_sql_query(
+            f"SELECT * FROM consultations WHERE patient_id={pid}",
             conn
         )
 
-        st.dataframe(
-            df,
-            use_container_width=True
-        )
+        conn.close()
 
-    elif option == "History":
+        st.write("### Patient Info")
+        st.dataframe(patient)
 
-        df = pd.read_sql_query(
-            "SELECT * FROM history",
-            conn
-        )
-
-        st.dataframe(
-            df,
-            use_container_width=True
-        )
-
-# --------------------------
-# ICT IN HEALTH
-# --------------------------
-elif menu == "ICT in Health Ideas":
-
-    st.header("💡 ICT Applications in Healthcare")
-
-    ideas = [
-        "Electronic Health Records (EHR)",
-        "Telemedicine & Online Consultation",
-        "AI Disease Prediction",
-        "Online Appointment Systems",
-        "Remote Patient Monitoring",
-        "Smart Hospital Management",
-        "Medical IoT Devices",
-        "Health Mobile Applications",
-        "Cloud Based Medical Records",
-        "Digital Prescription System",
-        "Health Chatbots",
-        "Medical Imaging Analysis using AI",
-        "Emergency Ambulance Tracking",
-        "Wearable Health Monitoring",
-        "Big Data Analytics in Healthcare"
-    ]
-
-    for idea in ideas:
-        st.success(idea)
-
-    st.subheader("Future Enhancements")
-
-    st.write("""
-    - Doctor Login
-    - Admin Dashboard
-    - Patient Login
-    - SMS Appointment Reminder
-    - Email Notification
-    - AI Symptom Checker
-    - Online Payments
-    - Prescription Generator
-    - Lab Report Upload
-    - Cloud Database Integration
-    """)
+        st.write("### Medical History")
+        st.dataframe(history)
